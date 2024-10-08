@@ -1,4 +1,5 @@
 import colorsys
+import random
 import tkinter as tk
 import customtkinter as ctk
 import cbor2
@@ -31,38 +32,61 @@ class CARFileReader(ctk.CTk):
         self.geometry("1000x800")
 
         self.grid_columnconfigure(0, weight=1)
-        self.grid_rowconfigure(0, weight=1)
+        self.grid_rowconfigure(1, weight=1)
 
         self.create_widgets()
         self.bluesky_posts = []
+        self.filtered_posts = []
         self.current_post_index = 0
         self.posts_per_page = 10
         self.pastel_colors = self.generate_pastel_colors(20)  # Generate 20 pastel colors
 
     def create_widgets(self):
-        # Posts display frame (now at the top)
-        self.posts_frame = ctk.CTkScrollableFrame(self, fg_color="#F0F9FF")
-        self.posts_frame.grid(row=0, column=0, padx=20, pady=20, sticky="nsew")
+        # Header with search bar
+        self.header_frame = ctk.CTkFrame(self, fg_color="#3B82F6", height=60)
+        self.header_frame.grid(row=0, column=0, sticky="ew")
+        self.header_frame.grid_columnconfigure(1, weight=1)
+        self.header_frame.grid_propagate(False)
+
+        self.search_label = ctk.CTkLabel(self.header_frame, text="Search:", text_color="white")
+        self.search_label.grid(row=0, column=0, padx=(20, 5), pady=15)
+
+        self.search_entry = ctk.CTkEntry(self.header_frame, width=400, fg_color="white", text_color="#1E3A8A")
+        self.search_entry.grid(row=0, column=1, padx=5, pady=15, sticky="ew")
+        self.search_entry.bind("<Return>", self.perform_search)
+
+        self.search_button = ctk.CTkButton(self.header_frame, text="Search", command=self.perform_search, fg_color="#2563EB", hover_color="#1D4ED8", text_color="white")
+        self.search_button.grid(row=0, column=2, padx=(5, 20), pady=15)
+
+        # Main content area (posts)
+        self.main_frame = ctk.CTkFrame(self, fg_color="#F0F9FF")
+        self.main_frame.grid(row=1, column=0, sticky="nsew")
+        self.main_frame.grid_columnconfigure(0, weight=1)
+        self.main_frame.grid_rowconfigure(0, weight=1)
+
+        self.posts_frame = ctk.CTkScrollableFrame(self.main_frame, fg_color="#F0F9FF")
+        self.posts_frame.grid(row=0, column=0, sticky="nsew", padx=20, pady=20)
         self.posts_frame.grid_columnconfigure(0, weight=1)
         self.posts_frame.bind_all("<MouseWheel>", self.on_mousewheel)
 
-        # File selection frame (now at the bottom)
-        self.file_frame = ctk.CTkFrame(self, fg_color="#E0F0FF")
-        self.file_frame.grid(row=1, column=0, padx=20, pady=(0, 20), sticky="ew")
-        self.file_frame.grid_columnconfigure(1, weight=1)
+        # Footer with file selection
+        self.footer_frame = ctk.CTkFrame(self, fg_color="#E0F0FF", height=80)
+        self.footer_frame.grid(row=2, column=0, sticky="ew")
+        self.footer_frame.grid_columnconfigure(1, weight=1)
+        self.footer_frame.grid_propagate(False)
 
-        self.file_label = ctk.CTkLabel(self.file_frame, text="CAR File:", text_color="#1E3A8A")
-        self.file_label.grid(row=0, column=0, padx=5, pady=5)
+        self.file_label = ctk.CTkLabel(self.footer_frame, text="CAR File:", text_color="#1E3A8A")
+        self.file_label.grid(row=0, column=0, padx=(20, 5), pady=25)
 
-        self.file_entry = ctk.CTkEntry(self.file_frame, width=400, fg_color="white", text_color="#1E3A8A")
-        self.file_entry.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
+        self.file_entry = ctk.CTkEntry(self.footer_frame, width=400, fg_color="white", text_color="#1E3A8A")
+        self.file_entry.grid(row=0, column=1, padx=5, pady=25, sticky="ew")
 
-        self.browse_button = ctk.CTkButton(self.file_frame, text="Browse", command=self.browse_file, fg_color="#3B82F6", hover_color="#2563EB", text_color="white")
-        self.browse_button.grid(row=0, column=2, padx=5, pady=5)
+        self.browse_button = ctk.CTkButton(self.footer_frame, text="Browse", command=self.browse_file, fg_color="#3B82F6", hover_color="#2563EB", text_color="white")
+        self.browse_button.grid(row=0, column=2, padx=(5, 20), pady=25)
 
-        # Progress bar (now at the bottom)
-        self.progress_bar = ctk.CTkProgressBar(self, fg_color="#E0F0FF", progress_color="#3B82F6")
-        self.progress_bar.grid(row=2, column=0, padx=20, pady=(0, 20), sticky="ew")
+        # Progress bar
+        self.progress_bar = ctk.CTkProgressBar(self.footer_frame, fg_color="#E0F0FF", progress_color="#3B82F6")
+        self.progress_bar.grid(row=1, column=0, columnspan=3, padx=20, pady=(0, 10), sticky="ew")
         self.progress_bar.set(0)
         self.progress_bar.grid_remove()
 
@@ -70,30 +94,11 @@ class CARFileReader(ctk.CTk):
         colors = []
         for i in range(n):
             hue = i / n
-            saturation = 0.3
-            lightness = 0.85
+            saturation = random.uniform(0.3, 0.7)
+            lightness = random.uniform(0.8, 0.9)
             r, g, b = colorsys.hls_to_rgb(hue, lightness, saturation)
             colors.append(f"#{int(r*255):02x}{int(g*255):02x}{int(b*255):02x}")
         return colors
-
-    def display_bluesky_posts(self):
-        self.load_more_posts()
-
-    def load_more_posts(self):
-        end_index = min(self.current_post_index + self.posts_per_page, len(self.bluesky_posts))
-        for i, post in enumerate(self.bluesky_posts[self.current_post_index:end_index], start=self.current_post_index):
-            color_index = i % len(self.pastel_colors)
-            post_frame = ctk.CTkFrame(self.posts_frame, fg_color=self.pastel_colors[color_index], corner_radius=10)
-            post_frame.grid(sticky="ew", padx=10, pady=5)
-            post_frame.grid_columnconfigure(0, weight=1)
-
-            ctk.CTkLabel(post_frame, text=f"Author: {post['author']}", anchor="w", text_color="#1E3A8A").grid(sticky="ew", padx=5, pady=2)
-            ctk.CTkLabel(post_frame, text=f"Created At: {post['createdAt']}", anchor="w", text_color="#4B5563").grid(sticky="ew", padx=5, pady=2)
-            ctk.CTkLabel(post_frame, text=f"Text: {post['text']}", anchor="w", wraplength=800, text_color="#1F2937").grid(sticky="ew", padx=5, pady=2)
-
-            ctk.CTkFrame(self.posts_frame, height=2, fg_color="#E5E7EB").grid(sticky="ew", padx=10, pady=5)
-
-        self.current_post_index = end_index
 
     def browse_file(self):
         filename = filedialog.askopenfilename(filetypes=[("CAR files", "*.car")])
@@ -107,23 +112,6 @@ class CARFileReader(ctk.CTk):
         self.progress_bar.grid()
         self.progress_bar.set(0)
         threading.Thread(target=self.load_car_file, args=(file_path,), daemon=True).start()
-
-    def process_block(self, block_data, cid):
-        try:
-            parsed_data = cbor2.loads(block_data)
-            if isinstance(parsed_data, dict):
-                block_type = parsed_data.get('$type')
-                if block_type == 'app.bsky.feed.post':
-                    return {
-                        'type': block_type,
-                        'cid': str(cid),
-                        'text': parsed_data.get('text', ''),
-                        'createdAt': parsed_data.get('createdAt', ''),
-                        'author': parsed_data.get('author', '')
-                    }
-            return None
-        except Exception:
-            return None
 
     def load_car_file(self, file_path):
         self.bluesky_posts = []
@@ -160,6 +148,7 @@ class CARFileReader(ctk.CTk):
                     except Exception:
                         continue
 
+            self.filtered_posts = self.bluesky_posts
             self.after(0, self.display_bluesky_posts)
 
         except Exception as e:
@@ -175,6 +164,61 @@ class CARFileReader(ctk.CTk):
         for widget in self.posts_frame.winfo_children():
             widget.destroy()
         self.current_post_index = 0
+
+    def display_bluesky_posts(self):
+        self.load_more_posts()
+
+    def load_more_posts(self):
+        end_index = min(self.current_post_index + self.posts_per_page, len(self.filtered_posts))
+        for i, post in enumerate(self.filtered_posts[self.current_post_index:end_index], start=self.current_post_index):
+            color_index = i % len(self.pastel_colors)
+            post_frame = ctk.CTkFrame(self.posts_frame, fg_color=self.pastel_colors[color_index], corner_radius=10)
+            post_frame.grid(sticky="ew", padx=10, pady=5)
+            post_frame.grid_columnconfigure(0, weight=1)
+
+            ctk.CTkLabel(post_frame, text=f"Author: {post['author']}", anchor="w", text_color="#1E3A8A").grid(sticky="ew", padx=5, pady=2)
+            ctk.CTkLabel(post_frame, text=f"Created At: {post['createdAt']}", anchor="w", text_color="#4B5563").grid(sticky="ew", padx=5, pady=2)
+            ctk.CTkLabel(post_frame, text=f"Text: {post['text']}", anchor="w", wraplength=800, text_color="#1F2937").grid(sticky="ew", padx=5, pady=2)
+
+        self.current_post_index = end_index
+
+    def on_mousewheel(self, event):
+        if self.posts_frame.winfo_height() < self.posts_frame._parent_canvas.winfo_height():
+            return
+
+        canvas = self.posts_frame._parent_canvas
+        if canvas.yview() == (0.0, 1.0):
+            return
+
+        if event.delta < 0 and canvas.yview()[1] == 1.0:  # Scrolling down and at the bottom
+            self.load_more_posts()
+        canvas.yview_scroll(int(-1 * (event.delta / 60)), "units")
+
+    def perform_search(self, event=None):
+        search_query = self.search_entry.get().strip().lower()
+        if search_query:
+            self.filtered_posts = [post for post in self.bluesky_posts if search_query in post['text'].lower() or search_query in post['author'].lower()]
+        else:
+            self.filtered_posts = self.bluesky_posts
+        self.clear_posts()
+        self.display_bluesky_posts()
+
+    def process_block(self, block_data, cid):
+        try:
+            parsed_data = cbor2.loads(block_data)
+            if isinstance(parsed_data, dict):
+                block_type = parsed_data.get('$type')
+                if block_type == 'app.bsky.feed.post':
+                    return {
+                        'type': block_type,
+                        'cid': str(cid),
+                        'text': parsed_data.get('text', ''),
+                        'createdAt': parsed_data.get('createdAt', ''),
+                        'author': parsed_data.get('author', '')
+                    }
+            return None
+        except Exception:
+            return None
 
     def read_cid(self, file):
         first_byte = file.read(1)
@@ -192,36 +236,6 @@ class CARFileReader(ctk.CTk):
             mh_length = safe_varint_decode(file)
             mh_digest = file.read(mh_length)
             return varint.encode(version) + varint.encode(codec) + varint.encode(mh_code) + varint.encode(mh_length) + mh_digest
-
-    def display_bluesky_posts(self):
-        self.load_more_posts()
-
-    def load_more_posts(self):
-        end_index = min(self.current_post_index + self.posts_per_page, len(self.bluesky_posts))
-        for post in self.bluesky_posts[self.current_post_index:end_index]:
-            post_frame = ctk.CTkFrame(self.posts_frame, fg_color="#FFFFFF", corner_radius=10)
-            post_frame.grid(sticky="ew", padx=10, pady=5)
-            post_frame.grid_columnconfigure(0, weight=1)
-
-            ctk.CTkLabel(post_frame, text=f"Author: {post['author']}", anchor="w", text_color="#1E3A8A").grid(sticky="ew", padx=5, pady=2)
-            ctk.CTkLabel(post_frame, text=f"Created At: {post['createdAt']}", anchor="w", text_color="#4B5563").grid(sticky="ew", padx=5, pady=2)
-            ctk.CTkLabel(post_frame, text=f"Text: {post['text']}", anchor="w", wraplength=800, text_color="#1F2937").grid(sticky="ew", padx=5, pady=2)
-
-            ctk.CTkFrame(self.posts_frame, height=2, fg_color="#E5E7EB").grid(sticky="ew", padx=10, pady=5)
-
-        self.current_post_index = end_index
-
-    def on_mousewheel(self, event):
-        if self.posts_frame.winfo_height() < self.posts_frame._parent_canvas.winfo_height():
-            return
-
-        canvas = self.posts_frame._parent_canvas
-        if canvas.yview() == (0.0, 1.0):
-            return
-
-        if event.delta < 0 and canvas.yview()[1] == 1.0:  # Scrolling down and at the bottom
-            self.load_more_posts()
-        canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
 
     def show_error(self, message):
         error_label = ctk.CTkLabel(self.posts_frame, text=message, text_color="red")
