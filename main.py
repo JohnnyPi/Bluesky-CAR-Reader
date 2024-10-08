@@ -43,20 +43,45 @@ class CARFileReader(ctk.CTk):
 
     def create_widgets(self):
         # Header with search bar
-        self.header_frame = ctk.CTkFrame(self, fg_color="#3B82F6", height=60)
+        self.header_frame = ctk.CTkFrame(self, fg_color="#3B82F6", height=100)
         self.header_frame.grid(row=0, column=0, sticky="ew")
         self.header_frame.grid_columnconfigure(1, weight=1)
         self.header_frame.grid_propagate(False)
 
         self.search_label = ctk.CTkLabel(self.header_frame, text="Search:", text_color="white")
-        self.search_label.grid(row=0, column=0, padx=(20, 5), pady=15)
+        self.search_label.grid(row=0, column=0, padx=(20, 5), pady=10)
 
         self.search_entry = ctk.CTkEntry(self.header_frame, width=400, fg_color="white", text_color="#1E3A8A")
-        self.search_entry.grid(row=0, column=1, padx=5, pady=15, sticky="ew")
+        self.search_entry.grid(row=0, column=1, padx=5, pady=10, sticky="ew")
         self.search_entry.bind("<Return>", self.perform_search)
 
-        self.search_button = ctk.CTkButton(self.header_frame, text="Search", command=self.perform_search, fg_color="#2563EB", hover_color="#1D4ED8", text_color="white")
-        self.search_button.grid(row=0, column=2, padx=(5, 20), pady=15)
+        self.search_button = ctk.CTkButton(self.header_frame, text="Search", command=self.perform_search,
+                                           fg_color="#2563EB", hover_color="#1D4ED8", text_color="white")
+        self.search_button.grid(row=0, column=2, padx=(5, 20), pady=10)
+
+        # Sorting buttons
+        self.sort_frame = ctk.CTkFrame(self.header_frame, fg_color="#3B82F6")
+        self.sort_frame.grid(row=1, column=0, columnspan=3, padx=20, pady=10, sticky="ew")
+
+        self.sort_by_likes_button = ctk.CTkButton(self.sort_frame, text="Sort by Most Likes",
+                                                  command=lambda: self.sort_posts('likes'), fg_color="#2563EB", hover_color="#1D4ED8",
+                                                  text_color="white")
+        self.sort_by_likes_button.grid(row=0, column=0, padx=5, pady=5)
+
+        self.sort_by_replies_button = ctk.CTkButton(self.sort_frame, text="Sort by Replies",
+                                                    command=lambda: self.sort_posts('replies'), fg_color="#2563EB",
+                                                    hover_color="#1D4ED8", text_color="white")
+        self.sort_by_replies_button.grid(row=0, column=1, padx=5, pady=5)
+
+        self.sort_by_first_button = ctk.CTkButton(self.sort_frame, text="Sort by First",
+                                                  command=lambda: self.sort_posts('first'), fg_color="#2563EB",
+                                                  hover_color="#1D4ED8", text_color="white")
+        self.sort_by_first_button.grid(row=0, column=2, padx=5, pady=5)
+
+        self.sort_by_latest_button = ctk.CTkButton(self.sort_frame, text="Sort by Latest",
+                                                   command=lambda: self.sort_posts('latest'), fg_color="#2563EB",
+                                                   hover_color="#1D4ED8", text_color="white")
+        self.sort_by_latest_button.grid(row=0, column=3, padx=5, pady=5)
 
         # Main content area (posts)
         self.main_frame = ctk.CTkFrame(self, fg_color="#F0F9FF")
@@ -89,6 +114,20 @@ class CARFileReader(ctk.CTk):
         self.progress_bar.grid(row=1, column=0, columnspan=3, padx=20, pady=(0, 10), sticky="ew")
         self.progress_bar.set(0)
         self.progress_bar.grid_remove()
+
+    def sort_posts(self, sort_by):
+        if sort_by == 'likes':
+            self.filtered_posts.sort(key=lambda post: post.get('likes', 0), reverse=True)
+        elif sort_by == 'replies':
+            self.filtered_posts.sort(key=lambda post: post.get('replies', 0), reverse=True)
+        elif sort_by == 'first':
+            self.filtered_posts.sort(key=lambda post: post.get('createdAt', ''))
+        elif sort_by == 'latest':
+            self.filtered_posts.sort(key=lambda post: post.get('createdAt', ''), reverse=True)
+
+        self.current_post_index = 0  # Reset the current post index
+        self.clear_posts()  # Clear existing posts
+        self.display_bluesky_posts()  # Display the newly sorted posts
 
     def generate_pastel_colors(self, n):
         colors = []
