@@ -1,3 +1,4 @@
+import colorsys
 import tkinter as tk
 import customtkinter as ctk
 import cbor2
@@ -30,17 +31,24 @@ class CARFileReader(ctk.CTk):
         self.geometry("1000x800")
 
         self.grid_columnconfigure(0, weight=1)
-        self.grid_rowconfigure(1, weight=1)
+        self.grid_rowconfigure(0, weight=1)
 
         self.create_widgets()
         self.bluesky_posts = []
         self.current_post_index = 0
         self.posts_per_page = 10
+        self.pastel_colors = self.generate_pastel_colors(20)  # Generate 20 pastel colors
 
     def create_widgets(self):
-        # File selection frame
+        # Posts display frame (now at the top)
+        self.posts_frame = ctk.CTkScrollableFrame(self, fg_color="#F0F9FF")
+        self.posts_frame.grid(row=0, column=0, padx=20, pady=20, sticky="nsew")
+        self.posts_frame.grid_columnconfigure(0, weight=1)
+        self.posts_frame.bind_all("<MouseWheel>", self.on_mousewheel)
+
+        # File selection frame (now at the bottom)
         self.file_frame = ctk.CTkFrame(self, fg_color="#E0F0FF")
-        self.file_frame.grid(row=0, column=0, padx=20, pady=20, sticky="ew")
+        self.file_frame.grid(row=1, column=0, padx=20, pady=(0, 20), sticky="ew")
         self.file_frame.grid_columnconfigure(1, weight=1)
 
         self.file_label = ctk.CTkLabel(self.file_frame, text="CAR File:", text_color="#1E3A8A")
@@ -52,17 +60,40 @@ class CARFileReader(ctk.CTk):
         self.browse_button = ctk.CTkButton(self.file_frame, text="Browse", command=self.browse_file, fg_color="#3B82F6", hover_color="#2563EB", text_color="white")
         self.browse_button.grid(row=0, column=2, padx=5, pady=5)
 
-        # Progress bar
+        # Progress bar (now at the bottom)
         self.progress_bar = ctk.CTkProgressBar(self, fg_color="#E0F0FF", progress_color="#3B82F6")
-        self.progress_bar.grid(row=1, column=0, padx=20, pady=(0, 20), sticky="ew")
+        self.progress_bar.grid(row=2, column=0, padx=20, pady=(0, 20), sticky="ew")
         self.progress_bar.set(0)
         self.progress_bar.grid_remove()
 
-        # Posts display frame
-        self.posts_frame = ctk.CTkScrollableFrame(self, fg_color="#F0F9FF")
-        self.posts_frame.grid(row=2, column=0, padx=20, pady=20, sticky="nsew")
-        self.posts_frame.grid_columnconfigure(0, weight=1)
-        self.posts_frame.bind_all("<MouseWheel>", self.on_mousewheel)
+    def generate_pastel_colors(self, n):
+        colors = []
+        for i in range(n):
+            hue = i / n
+            saturation = 0.3
+            lightness = 0.85
+            r, g, b = colorsys.hls_to_rgb(hue, lightness, saturation)
+            colors.append(f"#{int(r*255):02x}{int(g*255):02x}{int(b*255):02x}")
+        return colors
+
+    def display_bluesky_posts(self):
+        self.load_more_posts()
+
+    def load_more_posts(self):
+        end_index = min(self.current_post_index + self.posts_per_page, len(self.bluesky_posts))
+        for i, post in enumerate(self.bluesky_posts[self.current_post_index:end_index], start=self.current_post_index):
+            color_index = i % len(self.pastel_colors)
+            post_frame = ctk.CTkFrame(self.posts_frame, fg_color=self.pastel_colors[color_index], corner_radius=10)
+            post_frame.grid(sticky="ew", padx=10, pady=5)
+            post_frame.grid_columnconfigure(0, weight=1)
+
+            ctk.CTkLabel(post_frame, text=f"Author: {post['author']}", anchor="w", text_color="#1E3A8A").grid(sticky="ew", padx=5, pady=2)
+            ctk.CTkLabel(post_frame, text=f"Created At: {post['createdAt']}", anchor="w", text_color="#4B5563").grid(sticky="ew", padx=5, pady=2)
+            ctk.CTkLabel(post_frame, text=f"Text: {post['text']}", anchor="w", wraplength=800, text_color="#1F2937").grid(sticky="ew", padx=5, pady=2)
+
+            ctk.CTkFrame(self.posts_frame, height=2, fg_color="#E5E7EB").grid(sticky="ew", padx=10, pady=5)
+
+        self.current_post_index = end_index
 
     def browse_file(self):
         filename = filedialog.askopenfilename(filetypes=[("CAR files", "*.car")])
