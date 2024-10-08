@@ -1,16 +1,14 @@
 import tkinter as tk
 import customtkinter as ctk
 import cbor2
-import json
 from tkinter import filedialog
-from multiformats import CID, multihash, multicodec, varint
+from multiformats import CID, varint
 import threading
 
-ctk.set_appearance_mode("Light")  # Set to light mode for a brighter palette
+ctk.set_appearance_mode("Light")
 ctk.set_default_color_theme("blue")
 
 def safe_varint_decode(file):
-    """Safely decode a varint from a file object."""
     value = 0
     shift = 0
     while True:
@@ -32,48 +30,39 @@ class CARFileReader(ctk.CTk):
         self.geometry("1000x800")
 
         self.grid_columnconfigure(0, weight=1)
-        self.grid_rowconfigure(0, weight=1)
+        self.grid_rowconfigure(1, weight=1)
 
         self.create_widgets()
         self.bluesky_posts = []
         self.current_post_index = 0
-        self.posts_per_page = 6
+        self.posts_per_page = 10
 
     def create_widgets(self):
-        self.main_frame = ctk.CTkFrame(self)
-        self.main_frame.grid(row=0, column=0, padx=20, pady=20, sticky="nsew")
-        self.main_frame.grid_columnconfigure(0, weight=1)
-        self.main_frame.grid_rowconfigure(1, weight=1)
-
-        # File selection
-        self.file_frame = ctk.CTkFrame(self.main_frame)
-        self.file_frame.grid(row=0, column=0, padx=10, pady=10, sticky="ew")
+        # File selection frame
+        self.file_frame = ctk.CTkFrame(self, fg_color="#E0F0FF")
+        self.file_frame.grid(row=0, column=0, padx=20, pady=20, sticky="ew")
         self.file_frame.grid_columnconfigure(1, weight=1)
 
-        self.file_label = ctk.CTkLabel(self.file_frame, text="CAR File:")
+        self.file_label = ctk.CTkLabel(self.file_frame, text="CAR File:", text_color="#1E3A8A")
         self.file_label.grid(row=0, column=0, padx=5, pady=5)
 
-        self.file_entry = ctk.CTkEntry(self.file_frame, width=400)
+        self.file_entry = ctk.CTkEntry(self.file_frame, width=400, fg_color="white", text_color="#1E3A8A")
         self.file_entry.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
 
-        self.browse_button = ctk.CTkButton(self.file_frame, text="Browse", command=self.browse_file)
+        self.browse_button = ctk.CTkButton(self.file_frame, text="Browse", command=self.browse_file, fg_color="#3B82F6", hover_color="#2563EB", text_color="white")
         self.browse_button.grid(row=0, column=2, padx=5, pady=5)
 
         # Progress bar
-        self.progress_bar = ctk.CTkProgressBar(self.main_frame)
-        self.progress_bar.grid(row=1, column=0, padx=10, pady=10, sticky="ew")
+        self.progress_bar = ctk.CTkProgressBar(self, fg_color="#E0F0FF", progress_color="#3B82F6")
+        self.progress_bar.grid(row=1, column=0, padx=20, pady=(0, 20), sticky="ew")
         self.progress_bar.set(0)
-        self.progress_bar.grid_remove()  # Hide initially
+        self.progress_bar.grid_remove()
 
-        # Content display
-        self.content_frame = ctk.CTkScrollableFrame(self.main_frame)
-        self.content_frame.grid(row=2, column=0, padx=10, pady=10, sticky="nsew")
-        self.content_frame.grid_columnconfigure(0, weight=1)
-
-        # Load more button
-        self.load_more_button = ctk.CTkButton(self.main_frame, text="Load More", command=self.load_more_posts)
-        self.load_more_button.grid(row=3, column=0, padx=10, pady=10)
-        self.load_more_button.grid_remove()  # Hide initially
+        # Posts display frame
+        self.posts_frame = ctk.CTkScrollableFrame(self, fg_color="#F0F9FF")
+        self.posts_frame.grid(row=2, column=0, padx=20, pady=20, sticky="nsew")
+        self.posts_frame.grid_columnconfigure(0, weight=1)
+        self.posts_frame.bind_all("<MouseWheel>", self.on_mousewheel)
 
     def browse_file(self):
         filename = filedialog.askopenfilename(filetypes=[("CAR files", "*.car")])
@@ -83,11 +72,9 @@ class CARFileReader(ctk.CTk):
             self.start_loading(filename)
 
     def start_loading(self, file_path):
-        self.clear_content()
-        self.progress_bar.grid()  # Show progress bar
+        self.clear_posts()
+        self.progress_bar.grid()
         self.progress_bar.set(0)
-
-        # Start loading in a separate thread
         threading.Thread(target=self.load_car_file, args=(file_path,), daemon=True).start()
 
     def process_block(self, block_data, cid):
@@ -103,33 +90,21 @@ class CARFileReader(ctk.CTk):
                         'createdAt': parsed_data.get('createdAt', ''),
                         'author': parsed_data.get('author', '')
                     }
-                elif block_type:
-                    return {'type': block_type}
-            return {'type': f'unknown (codec: {cid.codec})'}
-        except Exception as e:
-            return {'type': f'error: {str(e)}'}
+            return None
+        except Exception:
+            return None
 
     def load_car_file(self, file_path):
         self.bluesky_posts = []
-        block_types = {}
-
         try:
             with open(file_path, 'rb') as f:
-                # Get file size for progress calculation
                 f.seek(0, 2)
                 file_size = f.tell()
                 f.seek(0)
 
-                # Read the header
                 header_length = safe_varint_decode(f)
-                header_data = f.read(header_length)
-                header = cbor2.loads(header_data)
+                f.read(header_length)  # Skip header
 
-                self.update_content(f"CAR File Version: {header['version']}\n")
-                self.update_content(f"Root CIDs: {', '.join(str(cid) for cid in header['roots'])}\n\n")
-
-                # Read blocks
-                block_count = 0
                 while f.tell() < file_size:
                     try:
                         block_length = safe_varint_decode(f)
@@ -142,62 +117,42 @@ class CARFileReader(ctk.CTk):
                         data_length = block_length - len(cid_bytes)
                         block_data = f.read(data_length)
 
-                        # Process block data for Bluesky posts
                         block_info = self.process_block(block_data, cid)
                         if block_info:
-                            block_type = block_info.get('type', 'unknown')
-                            block_types[block_type] = block_types.get(block_type, 0) + 1
-                            if block_type == 'app.bsky.feed.post':
-                                self.bluesky_posts.append(block_info)
+                            self.bluesky_posts.append(block_info)
 
-                        block_count += 1
-
-                        # Update progress
                         progress = f.tell() / file_size
                         self.update_progress(progress)
 
                     except EOFError:
                         break
-                    except Exception as e:
-                        self.update_content(f"Error reading block {block_count}: {e}\n")
+                    except Exception:
                         continue
 
-                self.update_content(f"Total blocks processed: {block_count}\n")
-                self.update_content("Block types found:\n")
-                for block_type, count in block_types.items():
-                    self.update_content(f"  {block_type}: {count}\n")
-                self.update_content(f"\nBluesky Posts Found: {len(self.bluesky_posts)}\n\n")
-                self.display_bluesky_posts()
+            self.after(0, self.display_bluesky_posts)
 
         except Exception as e:
-            self.update_content(f"Error loading CAR file: {e}\n")
+            self.after(0, self.show_error, f"Error loading CAR file: {e}")
 
         finally:
-            self.update_progress(1)  # Ensure progress bar reaches 100%
-            self.progress_bar.grid_remove()  # Hide progress bar when done
+            self.after(0, self.progress_bar.grid_remove)
 
     def update_progress(self, value):
         self.after(0, self.progress_bar.set, value)
 
-    def update_content(self, text):
-        label = ctk.CTkLabel(self.content_frame, text=text, anchor="w", justify="left")
-        label.grid(sticky="ew", padx=5, pady=2)
-
-    def clear_content(self):
-        for widget in self.content_frame.winfo_children():
+    def clear_posts(self):
+        for widget in self.posts_frame.winfo_children():
             widget.destroy()
         self.current_post_index = 0
 
     def read_cid(self, file):
         first_byte = file.read(1)
         if first_byte == b'\x12':
-            # CIDv0
             if file.read(1) != b'\x20':
                 raise ValueError("Invalid CIDv0")
             return b'\x12\x20' + file.read(32)
         else:
-            # CIDv1
-            file.seek(-1, 1)  # Go back one byte
+            file.seek(-1, 1)
             version = safe_varint_decode(file)
             if version != 1:
                 raise ValueError(f"Unsupported CID version: {version}")
@@ -209,23 +164,37 @@ class CARFileReader(ctk.CTk):
 
     def display_bluesky_posts(self):
         self.load_more_posts()
-        self.load_more_button.grid()  # Show the "Load More" button
 
     def load_more_posts(self):
         end_index = min(self.current_post_index + self.posts_per_page, len(self.bluesky_posts))
         for post in self.bluesky_posts[self.current_post_index:end_index]:
-            post_frame = ctk.CTkFrame(self.content_frame)
-            post_frame.grid(sticky="ew", padx=5, pady=5)
+            post_frame = ctk.CTkFrame(self.posts_frame, fg_color="#FFFFFF", corner_radius=10)
+            post_frame.grid(sticky="ew", padx=10, pady=5)
             post_frame.grid_columnconfigure(0, weight=1)
 
-            ctk.CTkLabel(post_frame, text=f"CID: {post['cid']}", anchor="w").grid(sticky="ew", padx=5, pady=2)
-            ctk.CTkLabel(post_frame, text=f"Author: {post['author']}", anchor="w").grid(sticky="ew", padx=5, pady=2)
-            ctk.CTkLabel(post_frame, text=f"Created At: {post['createdAt']}", anchor="w").grid(sticky="ew", padx=5, pady=2)
-            ctk.CTkLabel(post_frame, text=f"Text: {post['text']}", anchor="w", wraplength=800).grid(sticky="ew", padx=5, pady=2)
+            ctk.CTkLabel(post_frame, text=f"Author: {post['author']}", anchor="w", text_color="#1E3A8A").grid(sticky="ew", padx=5, pady=2)
+            ctk.CTkLabel(post_frame, text=f"Created At: {post['createdAt']}", anchor="w", text_color="#4B5563").grid(sticky="ew", padx=5, pady=2)
+            ctk.CTkLabel(post_frame, text=f"Text: {post['text']}", anchor="w", wraplength=800, text_color="#1F2937").grid(sticky="ew", padx=5, pady=2)
+
+            ctk.CTkFrame(self.posts_frame, height=2, fg_color="#E5E7EB").grid(sticky="ew", padx=10, pady=5)
 
         self.current_post_index = end_index
-        if self.current_post_index >= len(self.bluesky_posts):
-            self.load_more_button.grid_remove()  # Hide the button when all posts are loaded
+
+    def on_mousewheel(self, event):
+        if self.posts_frame.winfo_height() < self.posts_frame._parent_canvas.winfo_height():
+            return
+
+        canvas = self.posts_frame._parent_canvas
+        if canvas.yview() == (0.0, 1.0):
+            return
+
+        if event.delta < 0 and canvas.yview()[1] == 1.0:  # Scrolling down and at the bottom
+            self.load_more_posts()
+        canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+
+    def show_error(self, message):
+        error_label = ctk.CTkLabel(self.posts_frame, text=message, text_color="red")
+        error_label.grid(sticky="ew", padx=10, pady=5)
 
 if __name__ == "__main__":
     app = CARFileReader()
