@@ -27,6 +27,7 @@ def safe_varint_decode(file):
         shift += 7
     return value
 
+
 class CARFileReader(ctk.CTk):
     def __init__(self):
         super().__init__()
@@ -43,6 +44,29 @@ class CARFileReader(ctk.CTk):
         self.current_post_index = 0
         self.posts_per_page = 10
         self.pastel_colors = self.generate_pastel_colors(20)  # Generate 20 pastel colors
+
+        # Create an overlay frame for the loading bar
+        self.overlay_frame = ctk.CTkFrame(self, fg_color="#000080")
+        self.overlay_frame.grid(row=0, column=0, rowspan=3, columnspan=3, sticky="nsew")
+        self.overlay_frame.grid_columnconfigure(0, weight=1)
+        self.overlay_frame.grid_rowconfigure(1, weight=1)
+
+        self.loading_label = ctk.CTkLabel(self.overlay_frame, text="Loading...", font=("Helvetica", 20),
+                                          text_color="white")
+        self.loading_label.grid(row=0, column=0, pady=(20, 0))
+
+        self.loading_bar = ctk.CTkProgressBar(self.overlay_frame, width=600, height=20, corner_radius=10)
+        self.loading_bar.grid(row=1, column=0)
+
+        self.overlay_frame.grid_remove()  # Hide the overlay initially
+
+    def start_loading(self, file_path):
+        self.clear_posts()
+        self.overlay_frame.grid()  # Show the overlay
+        self.loading_bar.set(0)
+        self.update_idletasks()  # Force update of the UI
+        self.overlay_frame.lift()  # Ensure the overlay is on top
+        threading.Thread(target=self.load_car_file, args=(file_path,), daemon=True).start()
 
     def create_widgets(self):
         # Header with search bar
@@ -149,12 +173,6 @@ class CARFileReader(ctk.CTk):
             self.file_entry.insert(0, filename)
             self.start_loading(filename)
 
-    def start_loading(self, file_path):
-        self.clear_posts()
-        self.progress_bar.grid()
-        self.progress_bar.set(0)
-        threading.Thread(target=self.load_car_file, args=(file_path,), daemon=True).start()
-
     def search_car_file(self, query):
         wildcard_pattern = self.wildcard_to_regex(query)
         matched_posts = []
@@ -172,7 +190,7 @@ class CARFileReader(ctk.CTk):
         text = post['text'].lower()
         author = post['author'].lower()
 
-        # Exact match
+        # Exact match or wildcard match
         if wildcard_pattern.search(text) or wildcard_pattern.search(author):
             return True
 
@@ -225,16 +243,20 @@ class CARFileReader(ctk.CTk):
                         continue
 
             self.filtered_posts = self.bluesky_posts
-            self.after(0, self.display_bluesky_posts)
+            self.after(0, self.finish_loading)
 
         except Exception as e:
             self.after(0, self.show_error, f"Error loading CAR file: {e}")
 
         finally:
-            self.after(0, self.progress_bar.grid_remove)
+            self.after(0, self.overlay_frame.grid_remove)  # Hide the overlay
 
     def update_progress(self, value):
-        self.after(0, self.progress_bar.set, value)
+        self.after(0, self.loading_bar.set, value)
+
+    def finish_loading(self):
+        self.overlay_frame.grid_remove()  # Hide the overlay
+        self.display_bluesky_posts()
 
     def clear_posts(self):
         for widget in self.posts_frame.winfo_children():
