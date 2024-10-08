@@ -155,15 +155,6 @@ class CARFileReader(ctk.CTk):
         self.progress_bar.set(0)
         threading.Thread(target=self.load_car_file, args=(file_path,), daemon=True).start()
 
-    def perform_search(self, event=None):
-        search_query = self.search_entry.get().strip().lower()
-        if search_query:
-            self.filtered_posts = self.search_car_file(search_query)
-        else:
-            self.filtered_posts = self.bluesky_posts
-        self.clear_posts()
-        self.display_bluesky_posts()
-
     def search_car_file(self, query):
         wildcard_pattern = self.wildcard_to_regex(query)
         matched_posts = []
@@ -291,7 +282,7 @@ class CARFileReader(ctk.CTk):
     def perform_search(self, event=None):
         search_query = self.search_entry.get().strip().lower()
         if search_query:
-            self.filtered_posts = [post for post in self.bluesky_posts if search_query in post['text'].lower() or search_query in post['author'].lower()]
+            self.filtered_posts = self.search_car_file(search_query)
         else:
             self.filtered_posts = self.bluesky_posts
         self.clear_posts()
