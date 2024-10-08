@@ -190,9 +190,18 @@ class CARFileReader(ctk.CTk):
         if canvas.yview() == (0.0, 1.0):
             return
 
-        if event.delta < 0 and canvas.yview()[1] == 1.0:  # Scrolling down and at the bottom
+        # Increase the scrolling speed significantly
+        scroll_speed_multiplier = 20
+        delta = int(-1 * (event.delta / 60) * scroll_speed_multiplier)
+
+        # Add a minimum scroll amount to ensure fast scrolling even with small mouse movements
+        min_scroll = 10 if event.delta < 0 else -10
+        delta = max(delta, min_scroll) if event.delta < 0 else min(delta, min_scroll)
+
+        if event.delta < 0 and canvas.yview()[1] >= 0.9:  # Scrolling down and near the bottom
             self.load_more_posts()
-        canvas.yview_scroll(int(-1 * (event.delta / 60)), "units")
+
+        canvas.yview_scroll(delta, "units")
 
     def perform_search(self, event=None):
         search_query = self.search_entry.get().strip().lower()
