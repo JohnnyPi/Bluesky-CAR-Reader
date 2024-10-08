@@ -1,9 +1,12 @@
 import colorsys
 import random
+import re
 import tkinter as tk
 import customtkinter as ctk
 import cbor2
 from tkinter import filedialog
+
+import fuzz
 from multiformats import CID, varint
 import threading
 
@@ -151,6 +154,49 @@ class CARFileReader(ctk.CTk):
         self.progress_bar.grid()
         self.progress_bar.set(0)
         threading.Thread(target=self.load_car_file, args=(file_path,), daemon=True).start()
+
+    def perform_search(self, event=None):
+        search_query = self.search_entry.get().strip().lower()
+        if search_query:
+            self.filtered_posts = self.search_car_file(search_query)
+        else:
+            self.filtered_posts = self.bluesky_posts
+        self.clear_posts()
+        self.display_bluesky_posts()
+
+    def search_car_file(self, query):
+        wildcard_pattern = self.wildcard_to_regex(query)
+        matched_posts = []
+
+        for post in self.bluesky_posts:
+            if self.match_post(post, wildcard_pattern, query):
+                matched_posts.append(post)
+
+        return matched_posts
+
+    def wildcard_to_regex(self, query):
+        return re.compile(query.replace('*', '.*').replace('?', '.'))
+
+    def match_post(self, post, wildcard_pattern, original_query):
+        text = post['text'].lower()
+        author = post['author'].lower()
+
+        # Exact match
+        if wildcard_pattern.search(text) or wildcard_pattern.search(author):
+            return True
+
+        # Fuzzy matching for misspellings and near terms
+        if self.fuzzy_match(text, original_query) or self.fuzzy_match(author, original_query):
+            return True
+
+        return False
+
+    def fuzzy_match(self, text, query, threshold=80):
+        words = text.split()
+        for word in words:
+            if fuzz.ratio(word, query) >= threshold:
+                return True
+        return False
 
     def load_car_file(self, file_path):
         self.bluesky_posts = []
